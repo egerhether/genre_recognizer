@@ -2,12 +2,10 @@ import torch.nn as nn
 
 class MLP(nn.Module):
     """
-    This class implements a Multi-layer Perceptron in PyTorch.
-    It handles the different layers and parameters of the model.
-    Once initialized an MLP object can perform forward.
+    Class implementing a Multi-Layer Perceptron using PyTorch.
     """
 
-    def __init__(self, n_inputs, n_hidden, n_classes, use_batch_norm = False, dropout = 0.2):
+    def __init__(self, n_inputs, n_hidden, n_classes, use_batch_norm = True, dropout = 0.2):
         """
         Initializes MLP object.
 
@@ -22,6 +20,8 @@ class MLP(nn.Module):
                      output dimensions of the MLP
           use_batch_norm: If True, add a Batch-Normalization layer in between
                           each Linear and ELU layer.
+          dropout: float, defines the fraction of dropout after each later. 
+                          if 0, no dropout is added.
         """
 
         super(MLP, self).__init__()
@@ -29,7 +29,7 @@ class MLP(nn.Module):
         layers = []
         n_hidden.append(n_classes)
 
-        input_layer = nn.Linear(n_inputs, n_hidden)
+        input_layer = nn.Linear(n_inputs, n_hidden[0])
         nn.init.kaiming_normal_(input_layer.weight)
         layers.append(input_layer)
 
@@ -48,7 +48,6 @@ class MLP(nn.Module):
 
             layer = nn.Linear(n, n_hidden[i + 1])
             nn.init.kaiming_normal_(layer.weight)
-            nn.init.constant_(layer.bias, 0)
 
             layers.append(layer)
         

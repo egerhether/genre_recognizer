@@ -1,16 +1,12 @@
 import torch.nn as nn
-import numpy as np
 import torch
-import os
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from copy import deepcopy
 
 
 from MLP import MLP
-from CNN import CNN
 from dataset import FMA_Dataset
-from genre_utils import id_to_genre, genres
 
 
 def accuracy(predictions, targets):
@@ -61,7 +57,7 @@ def evaluate(model, dataloader):
 
 
 
-def train_and_eval(subset = "small", arch = "mlp", mode = "top", n_hidden = [128], use_batch_norm = True, dropout = 0.2, epochs = 10):
+def train_and_eval(subset = "small", mode = "top", n_hidden = [128], use_batch_norm = True, dropout = 0.2, epochs = 10):
     '''
     Performs training of and evaluates the neural network genre classifier.
 
@@ -80,20 +76,18 @@ def train_and_eval(subset = "small", arch = "mlp", mode = "top", n_hidden = [128
     '''
 
     if use_batch_norm:
-        print(f"Training using model {arch}, batch norm and dropout of {dropout}" )
+        print(f"Training MLP, batch norm and dropout of {dropout}" )
     else:
-        print(f"Training using model {arch}, no batch norm and dropout of {dropout}" )
+        print(f"Training MLP, no batch norm and dropout of {dropout}" )
 
     
     torch.manual_seed(10)
 
-    train_data = FMA_Dataset("training", subset, mode)
+    train_data = FMA_Dataset("training", subset, "mlp", mode)
 
     train_loader = DataLoader(train_data, batch_size = 256, shuffle = True)
-    val_loader = DataLoader(FMA_Dataset("validation", subset, mode), batch_size = 256, shuffle = False)
-    test_loader = DataLoader(FMA_Dataset("test", subset, mode), batch_size = 256, shuffle = False)
-
-    raise Exception()
+    val_loader = DataLoader(FMA_Dataset("validation", subset, "mlp", mode), batch_size = 256, shuffle = False)
+    test_loader = DataLoader(FMA_Dataset("test", subset, "mlp", mode), batch_size = 256, shuffle = False)
 
     # Necessary for dynamic initialization, varies by subset size
     n_inputs = train_data.n_inputs
@@ -102,15 +96,11 @@ def train_and_eval(subset = "small", arch = "mlp", mode = "top", n_hidden = [128
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # Define the model and the loss
-    if arch in ["mlp", "cnn"]:
-        model = MLP(n_inputs, n_hidden, n_classes, use_batch_norm, dropout) if arch == "mlp" else CNN()
-    else:
-        raise Exception("Provide a correct training architecture - \"mlp\" or \"cnn\" ")
-    
+    model = MLP(n_inputs, n_hidden, n_classes, use_batch_norm, dropout) 
+    loss_module = nn.CrossEntropyLoss()
     best_val_acc = 0
 
     model.to(device)
-    loss_module = nn.CrossEntropyLoss()
     # TODO: optimize the optimizer :0
     optimizer = torch.optim.Adam(model.parameters(), lr = 0.01, weight_decay = 1e-4)
 
@@ -143,7 +133,7 @@ def train_and_eval(subset = "small", arch = "mlp", mode = "top", n_hidden = [128
 
 if __name__ == "__main__":
 
-    trained_model = train_and_eval('large', "mlp", "top", [164], True, 0.3, 50)
+    trained_model = train_and_eval('large', "top", [164], True, 0.3, 50)
     torch.save(trained_model.state_dict(), "trained_models/MLP_5958.pth")
     #file = open("trained_models/MLP_5958.txt")
     #file.write()

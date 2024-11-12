@@ -14,7 +14,7 @@ class FMA_Dataset(Dataset):
     Class representing the FMA dataset for using in a DataLoader
     '''
 
-    def __init__(self, split, subset, mode="top"):
+    def __init__(self, split, subset, arch, mode="top"):
         '''
         Initializes the dataset object.
 
@@ -29,9 +29,10 @@ class FMA_Dataset(Dataset):
         self.split = split
         self.subset = subset
         self.mode = mode
+        self.arch = arch
         self.data, self.labels = self.preprocess()
         
-        self.n_inputs = self.data.shape[1]
+        self.n_inputs = self.data.shape[1] if arch == "mlp" else self.data.shape[2]
         self.n_classes = len(torch.unique(self.labels))
         self.genre_names = []
 
@@ -67,7 +68,6 @@ class FMA_Dataset(Dataset):
 
         if self.mode == "top":
             labels = tracks.loc[data_split & data_subset, ('track', 'genre_top')]
-            print(labels[labels.isna()].index)
             labels = labels.dropna()
             self.genre_names = np.unique(labels.values)
             labels = labels.apply(lambda x: new_id(x) if x and isinstance(x, str) and len(x) > 0 else unknown_label)
@@ -81,5 +81,8 @@ class FMA_Dataset(Dataset):
         data_mfcc = torch.tensor(data_mfcc.values, dtype = torch.float32)
         data_cqt =  torch.tensor(data_cqt.values, dtype = torch.float32)
         data = torch.cat((data_mfcc, data_cqt), dim = 1)
+
+        if self.arch == "cnn":
+            data = torch.reshape(data, (data.shape[0], 1, data.shape[1]))
 
         return data, labels

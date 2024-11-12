@@ -1,0 +1,1 @@
+trained_model = train_and_eval(336, 'large', "top", [8, 24, 128, 92, 64, 16], [11, 7, 5, 3, 3, 3], True, 0.1, 150)

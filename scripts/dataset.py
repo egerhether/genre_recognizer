@@ -2,6 +2,7 @@ from torch.utils.data import Dataset
 import torch
 import fma.utils
 import numpy as np
+import pandas as pd
 from genre_utils import new_id
 
 # Global label mapping dictionary for known labels in training
@@ -31,7 +32,8 @@ class FMA_Dataset(Dataset):
         self.data, self.labels = self.preprocess()
         
         self.n_inputs = self.data.shape[1]
-        self.n_classes = self.convert_labels()
+        self.n_classes = len(torch.unique(self.labels))
+        self.genre_names = []
 
     def __len__(self):
         return len(self.data)
@@ -59,35 +61,25 @@ class FMA_Dataset(Dataset):
         data_split = tracks['set', 'split'] == self.split
         data_subset = tracks['set', 'subset'] <= self.subset
         
-        data = features.loc[data_split & data_subset, 'mfcc']
+        data_mfcc = features.loc[data_split & data_subset, 'mfcc']
+        data_cqt = features.loc[data_split & data_subset, 'chroma_cqt']
         
 
         if self.mode == "top":
             labels = tracks.loc[data_split & data_subset, ('track', 'genre_top')]
-            labels = labels.apply(lambda x: new_id(x) if x and isinstance(x, str) and len(x) > 0 else unknown_label)
+            print(labels[labels.isna()].index)
             labels = labels.dropna()
-            data = data[data.index.isin(labels.index)]
+            self.genre_names = np.unique(labels.values)
+            labels = labels.apply(lambda x: new_id(x) if x and isinstance(x, str) and len(x) > 0 else unknown_label)
+            data_mfcc = data_mfcc[data_mfcc.index.isin(labels.index)]
+            data_cqt = data_cqt[data_cqt.index.isin(labels.index)]
         else: 
             # TODO: handle multiple class labels
             pass
 
         labels = torch.tensor(labels.values, dtype = int)
-        data = torch.tensor(data.values, dtype = torch.float32)
+        data_mfcc = torch.tensor(data_mfcc.values, dtype = torch.float32)
+        data_cqt =  torch.tensor(data_cqt.values, dtype = torch.float32)
+        data = torch.cat((data_mfcc, data_cqt), dim = 1)
 
         return data, labels
-    
-    def convert_labels(self):
-        global global_label_mapping, unknown_label
-
-        if self.split == "training" and not global_label_mapping:
-
-            unique_labels = torch.unique(self.labels)
-            global_label_mapping = {old_label.item(): idx for idx, old_label in enumerate(unique_labels)}
-        
-        # Map labels based on training's label mapping; unknown labels get the `unknown_label` value
-        self.labels = torch.tensor(
-            [global_label_mapping.get(label.item(), unknown_label) for label in self.labels], 
-            dtype = int
-        )
-        
-        return len(global_label_mapping)

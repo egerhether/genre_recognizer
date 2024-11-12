@@ -43,8 +43,8 @@ class CNN(nn.Module):
         
         for layer in self.layers:
             out = layer(out)
-
-        return out
+            
+        return out   
     
     @property
     def device(self):

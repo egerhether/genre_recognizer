@@ -1,9 +1,11 @@
 import torch.nn as nn
+import numpy as np
 import torch
+import os
 from tqdm import tqdm
 from torch.utils.data import DataLoader
-import numpy as np
 from copy import deepcopy
+
 
 from MLP import MLP
 from CNN import CNN
@@ -91,6 +93,8 @@ def train_and_eval(subset = "small", arch = "mlp", mode = "top", n_hidden = [128
     val_loader = DataLoader(FMA_Dataset("validation", subset, mode), batch_size = 256, shuffle = False)
     test_loader = DataLoader(FMA_Dataset("test", subset, mode), batch_size = 256, shuffle = False)
 
+    raise Exception()
+
     # Necessary for dynamic initialization, varies by subset size
     n_inputs = train_data.n_inputs
     n_classes = train_data.n_classes
@@ -139,4 +143,7 @@ def train_and_eval(subset = "small", arch = "mlp", mode = "top", n_hidden = [128
 
 if __name__ == "__main__":
 
-    train_and_eval('large', "mlp", "top", [64], True, 0.2, 15)
+    trained_model = train_and_eval('large', "mlp", "top", [164], True, 0.3, 50)
+    torch.save(trained_model.state_dict(), "trained_models/MLP_5958.pth")
+    #file = open("trained_models/MLP_5958.txt")
+    #file.write()

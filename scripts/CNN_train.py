@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from copy import deepcopy
@@ -55,10 +56,16 @@ def train_and_eval(fc_in, subset = "small", mode = "top", n_filters = [4, 12, 24
     # TODO: optimize the optimizer :0
     optimizer = torch.optim.Adam(model.parameters(), lr = 1e-3, weight_decay = 5e-5)
 
+    # for plotting
+    train_losses = []
+    val_losses = []
+    val_accs = []
+
     for epoch in range(epochs):
 
         # Put the model into training mode
         model.train()
+        epoch_train_loss = 0
 
         for data, labels in tqdm(train_loader, desc = f"Epochs: {epoch + 1}/{epochs}"):
             
@@ -66,25 +73,42 @@ def train_and_eval(fc_in, subset = "small", mode = "top", n_filters = [4, 12, 24
             optimizer.zero_grad()
             pred_labels = model.forward(data)
             loss = loss_module(pred_labels, labels)
+            epoch_train_loss += loss
             loss.backward()
             optimizer.step()
 
         
-        val_acc = evaluate(model, val_loader)
-        print(f"Validation accuracy {val_acc * 100:.2f}%")
+        epoch_train_loss = epoch_train_loss.cpu().detach() / len(train_loader)
+        val_acc, val_loss = evaluate(model, val_loader)
+
+        train_losses.append(epoch_train_loss)
+        val_losses.append(val_loss)
+        val_accs.append(val_acc)
+
+
+        print(f"Validation accuracy: {val_acc * 100:.2f}%, Validation loss: {val_loss}")
         if val_acc > best_val_acc:
             best_model = deepcopy(model)
             best_val_acc = val_acc
 
-    test_acc = evaluate(best_model, test_loader)
-    print(f"Test accuracy {test_acc * 100:.2f}%")
+    test_acc, test_loss = evaluate(best_model, test_loader)
+    print(f"Test accuracy {test_acc * 100:.2f}%, Test loss: {test_loss}")
 
-    return best_model
+    plot_dict = {"test_acc": test_acc, "val_acc": val_accs, "train_loss": train_losses, "val_loss": val_losses}
+
+    return best_model, plot_dict
 
 
 if __name__ == "__main__":
 
-    trained_model = train_and_eval(336, 'large', "top", [8, 24, 128, 92, 64, 16], [11, 7, 5, 3, 3, 3], True, 0.1, 150)
-    torch.save(trained_model.state_dict(), "trained_models/CNN_5936.pth")
+    trained_model, plot_dict = train_and_eval(672, 'large', "top", [8, 24, 128, 92, 64, 16], [11, 7, 5, 3, 3, 3], True, 0.1, 75)
+    #torch.save(trained_model.state_dict(), "trained_models/CNN_5936.pth")
+
+    plt.plot(plot_dict["train_loss"])
+    plt.plot(plot_dict["val_loss"])
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend(["Training loss", "Validation loss"])
+    plt.show()
     #file = open("trained_models/MLP_5958.txt")
     #file.write()

@@ -64,6 +64,8 @@ class FMA_Dataset(Dataset):
         
         data_mfcc = features.loc[data_split & data_subset, 'mfcc']
         data_cqt = features.loc[data_split & data_subset, 'chroma_cqt']
+        data_cens = features.loc[data_split & data_subset, 'chroma_cens']
+        data_stft = features.loc[data_split & data_subset, 'chroma_stft']
         
 
         if self.mode == "top":
@@ -73,14 +75,18 @@ class FMA_Dataset(Dataset):
             labels = labels.apply(lambda x: new_id(x) if x and isinstance(x, str) and len(x) > 0 else unknown_label)
             data_mfcc = data_mfcc[data_mfcc.index.isin(labels.index)]
             data_cqt = data_cqt[data_cqt.index.isin(labels.index)]
+            data_cens = data_cens[data_cens.index.isin(labels.index)]
+            data_stft = data_stft[data_stft.index.isin(labels.index)]
         else: 
             # TODO: handle multiple class labels
             pass
 
         labels = torch.tensor(labels.values, dtype = int)
         data_mfcc = torch.tensor(data_mfcc.values, dtype = torch.float32)
-        data_cqt =  torch.tensor(data_cqt.values, dtype = torch.float32)
-        data = torch.cat((data_mfcc, data_cqt), dim = 1)
+        data_cqt = torch.tensor(data_cqt.values, dtype = torch.float32)
+        data_cens = torch.tensor(data_cens.values, dtype = torch.float32)
+        data_stft = torch.tensor(data_stft.values, dtype = torch.float32)
+        data = torch.cat((data_mfcc, data_cqt, data_cens, data_stft), dim = 1)
 
         if self.arch == "cnn":
             data = torch.reshape(data, (data.shape[0], 1, data.shape[1]))

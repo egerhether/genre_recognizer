@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import matplotlib.pyplot as plt
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from copy import deepcopy
@@ -38,6 +39,8 @@ def evaluate(model, dataloader):
 
     model.eval()
     device = model.device
+    loss_module = nn.CrossEntropyLoss()
+    loss = 0
     acc = 0
     n = 0
 
@@ -47,12 +50,16 @@ def evaluate(model, dataloader):
 
             data, labels = data.to(device), labels.to(device)
             pred_labels = model.forward(data)
+
             acc += data.shape[0] * accuracy(pred_labels, labels)
+            loss += loss_module(pred_labels, labels)
+
             n += data.shape[0]
 
         acc /= n
+        loss /= len(dataloader)
 
-    return acc
+    return acc, loss.cpu().detach()
 
 
 
@@ -91,6 +98,7 @@ def train_and_eval(subset = "small", mode = "top", n_hidden = [128], use_batch_n
 
     # Necessary for dynamic initialization, varies by subset size
     n_inputs = train_data.n_inputs
+    print(n_inputs)
     n_classes = train_data.n_classes
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -102,38 +110,61 @@ def train_and_eval(subset = "small", mode = "top", n_hidden = [128], use_batch_n
 
     model.to(device)
     # TODO: optimize the optimizer :0
-    optimizer = torch.optim.Adam(model.parameters(), lr = 0.01, weight_decay = 1e-4)
+    optimizer = torch.optim.Adam(model.parameters(), lr = 0.001, weight_decay = 5e-5)
+
+    # for plotting
+    train_losses = []
+    val_losses = []
+    val_accs = []
 
     for epoch in range(epochs):
 
         # Put the model into training mode
         model.train()
+        epoch_train_loss = 0
 
-        for data, labels in tqdm(train_loader, desc = f"Epochs: {epoch + 1}/{epochs}"):
+        for data, labels in tqdm(train_loader, desc = f"Epoch: {epoch + 1}/{epochs}"):
             
             data, labels = data.to(device), labels.to(device)
             optimizer.zero_grad()
             pred_labels = model.forward(data)
             loss = loss_module(pred_labels, labels)
+            epoch_train_loss += loss
             loss.backward()
             optimizer.step()
 
         
-        val_acc = evaluate(model, val_loader)
-        print(f"Validation accuracy {val_acc * 100:.2f}%")
+        epoch_train_loss = epoch_train_loss.cpu().detach() / len(train_loader)
+        val_acc, val_loss = evaluate(model, val_loader)
+
+        train_losses.append(epoch_train_loss)
+        val_losses.append(val_loss)
+        val_accs.append(val_acc)
+
+
+        print(f"Validation accuracy: {val_acc * 100:.2f}%, Validation loss: {val_loss}")
         if val_acc > best_val_acc:
             best_model = deepcopy(model)
             best_val_acc = val_acc
 
-    test_acc = evaluate(best_model, test_loader)
-    print(f"Test accuracy {test_acc * 100:.2f}%")
+    test_acc, test_loss = evaluate(best_model, test_loader)
+    print(f"Test accuracy {test_acc * 100:.2f}%, Test loss: {test_loss}")
 
-    return best_model
+    plot_dict = {"test_acc": test_acc, "val_acc": val_accs, "train_loss": train_losses, "val_loss": val_losses}
+
+    return best_model, plot_dict
 
 
 if __name__ == "__main__":
 
-    trained_model = train_and_eval('large', "top", [164], True, 0.3, 50)
-    torch.save(trained_model.state_dict(), "trained_models/MLP_5958.pth")
+    trained_model, plot_dict = train_and_eval('large', "top", [275, 160], True, 0.5, 50)
+    torch.save(trained_model.state_dict(), "trained_models/MLP_6080.pth")
+
+    plt.plot(plot_dict["train_loss"])
+    plt.plot(plot_dict["val_loss"])
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend(["Training loss", "Validation loss"])
+    plt.show()
     #file = open("trained_models/MLP_5958.txt")
     #file.write()

@@ -3,11 +3,18 @@ import torch
 import fma.utils
 import numpy as np
 import pandas as pd
+import glob
+import librosa
+import os
+import warnings
+from tqdm import tqdm
 from genre_utils import new_id
 
-# Global label mapping dictionary for known labels in training
-global_label_mapping = {}
-unknown_label = -1  # Label for unknown genres in validation and test sets
+# Run this script after downloading the fma_{size}.zip dataset and extracting it do
+# data/fma_{size}
+
+
+warnings.filterwarnings("error", category=UserWarning)
 
 class FMA_Dataset(Dataset):
     '''
@@ -72,7 +79,7 @@ class FMA_Dataset(Dataset):
             labels = tracks.loc[data_split & data_subset, ('track', 'genre_top')]
             labels = labels.dropna()
             self.genre_names = np.unique(labels.values)
-            labels = labels.apply(lambda x: new_id(x) if x and isinstance(x, str) and len(x) > 0 else unknown_label)
+            labels = labels.apply(lambda x: new_id(x))
             data_mfcc = data_mfcc[data_mfcc.index.isin(labels.index)]
             data_cqt = data_cqt[data_cqt.index.isin(labels.index)]
             data_cens = data_cens[data_cens.index.isin(labels.index)]
@@ -92,3 +99,100 @@ class FMA_Dataset(Dataset):
             data = torch.reshape(data, (data.shape[0], 1, data.shape[1]))
 
         return data, labels
+    
+
+
+class FMA_Audio_Dataset(Dataset):
+    '''
+    Class representing the audio vectors of the FMA Dataset for use in a dataloader
+    '''
+
+    def __init__(self, split, source = "data/audio_data/*.npz"):
+
+        self.files = glob.glob(source)
+        test_size = len(self.files) // 7
+        train_size = len(self.files) - 2 * test_size
+
+        if split == "training":
+            self.files = self.files[:train_size]
+            self.len = 8 * 2480
+        elif split == "test":
+            self.files = self.files[train_size : (train_size + test_size)]
+            self.len = 2480
+        elif split == "validation":
+            self.files = self.files[(train_size + test_size) : (train_size + 2 * test_size)]
+            self.len = 2480
+
+        self.current_batch = 0
+        self.data = []
+        self.total_length = 0
+
+    def __getitem__(self, index):
+
+        print(index)
+        self.data, self.labels = self.load_batch(index)
+        self.current_batch += 1
+        self.total_length += len(self.data)
+            
+        return self.data, self.labels
+    
+    def load_batch(self, index):
+        '''
+        Load the next .npz file
+        '''
+
+        loaded = np.load(self.files[index])
+        data = torch.tensor(loaded['x'][:2480, :])
+        labels = torch.tensor(loaded['y'][:2480])
+
+        data = torch.reshape(data, (data.shape[0], 1, data.shape[1]))
+
+        return data, labels
+    
+    def __len__(self):
+        
+        return self.len
+
+
+def create_dataset(batch_size = 500):
+    '''
+    Function loading the fma audio files and saving their decoded vectorized representation in a torch.Tensor.
+    Saves batches of the dataset in order to allow for lower memory systems to generate the dataset.
+    '''
+
+    audio_files = glob.glob("data/fma_medium/*/*.mp3")
+    tracks = fma.utils.load('data/fma_metadata/tracks.csv')
+    audio = []
+    labels = []
+    batch_counter = 0
+
+    for idx, file in enumerate(tqdm(audio_files)):
+        track_id = int(os.path.basename(file)[:-4])
+
+        try:
+            x, sr = librosa.load(file, sr = 10000)
+            # trial and error min length of a decoded file such that our tensor is homogeneous
+            if x.shape[0] > 10000:
+                x = x[:10000]
+            audio.append(x)
+            label = new_id(tracks.loc[track_id, ('track', 'genre_top')])
+            labels.append(label)
+
+        except UserWarning:
+            # this is necessary as sometimes a file might be corrupted
+            print(f"Error loading {file}")
+            continue
+
+        if len(audio) % batch_size == 0 or (idx + 1) == len(audio_files):
+            audio_data = np.array(audio)
+            labels = np.array(labels)
+            np.savez_compressed(f"data/audio_data/audio_data_{batch_counter}", x = audio_data, y = labels)
+
+            audio = []
+            labels = []
+            batch_counter += 1
+
+
+if __name__ == "__main__":
+
+    create_dataset(2500)

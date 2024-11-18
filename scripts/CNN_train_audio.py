@@ -37,11 +37,10 @@ def train_and_eval(fc_in, n_filters = [4, 12, 24, 10, 5], kernel_sizes = [5, 3, 
 
     train_data = FMA_Audio_Dataset("training", "data/audio_data/*.npz")
 
-    train_loader = DataLoader(train_data, batch_size = 2480, shuffle = False)
-    val_loader = DataLoader(FMA_Audio_Dataset("validation", "data/audio_data/*.npz"), batch_size = 2500, shuffle = False)
-    test_loader = DataLoader(FMA_Audio_Dataset("test", "data/audio_data/*.npz"), batch_size = 2500, shuffle = False)
+    train_loader = DataLoader(train_data, batch_size = 256, shuffle = True)
+    val_loader = DataLoader(FMA_Audio_Dataset("validation", "data/audio_data/*.npz"), batch_size = 256, shuffle = False)
+    test_loader = DataLoader(FMA_Audio_Dataset("test", "data/audio_data/*.npz"), batch_size = 256, shuffle = False)
 
-    # Necessary for dynamic initialization, varies by subset size
     n_classes = 16
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -69,7 +68,6 @@ def train_and_eval(fc_in, n_filters = [4, 12, 24, 10, 5], kernel_sizes = [5, 3, 
         for data, labels in tqdm(train_loader, desc = f"Epochs: {epoch + 1}/{epochs}"):
             
             data, labels = data.to(device), labels.to(device)
-            print(data.shape)
             optimizer.zero_grad()
             pred_labels = model.forward(data)
             loss = loss_module(pred_labels, labels)
@@ -101,7 +99,7 @@ def train_and_eval(fc_in, n_filters = [4, 12, 24, 10, 5], kernel_sizes = [5, 3, 
 
 if __name__ == "__main__":
 
-    trained_model, plot_dict = train_and_eval(19888, [8, 24, 128, 92, 64, 16], [11, 7, 5, 3, 3, 3], True, 0.1, 10)
+    trained_model, plot_dict = train_and_eval(2000, [8, 24, 128, 92, 64, 16, 8, 2], [11, 7, 5, 3, 3, 3, 3, 3, 3], True, 0.05, 10)
     #torch.save(trained_model.state_dict(), "trained_models/CNN_5936.pth")
 
     plt.plot(plot_dict["train_loss"])

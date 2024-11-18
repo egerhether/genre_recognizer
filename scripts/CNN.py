@@ -10,7 +10,7 @@ class CNN(nn.Module):
 
         layers = []
 
-        input_layer = nn.Conv1d(1, n_filters[0], kernel_sizes[0])
+        input_layer = nn.Conv1d(1, n_filters[0], kernel_sizes[0], padding=1)
         nn.init.kaiming_uniform_(input_layer.weight)
         layers.append(input_layer)
 
@@ -22,24 +22,23 @@ class CNN(nn.Module):
             if use_batch_norm:
                 layers.append(nn.BatchNorm1d(n_filters[i]))
 
-            layers.append(nn.LeakyReLU())
+            layers.append(nn.ReLU())
 
             if dropout > 0:
                 layers.append(nn.Dropout(dropout))
 
-            layer = nn.Conv1d(n, n_filters[i + 1], kernel_sizes[i + 1])
+            layer = nn.Conv1d(n, n_filters[i + 1], kernel_sizes[i + 1], padding=1)
             nn.init.kaiming_uniform_(layer.weight)
 
             layers.append(layer)
 
-            if i % 2 == 0:
-                layers.append(nn.MaxPool1d(kernel_size = 3, stride = 2))
+            layers.append(nn.AdaptiveMaxPool1d(1000))
 
         
         if use_batch_norm:
                 layers.append(nn.BatchNorm1d(n_filters[-1]))
         
-        layers.append(nn.LeakyReLU())
+        layers.append(nn.ReLU())
 
         output_layer = nn.Linear(fc_in, n_classes)
         nn.init.kaiming_normal_(output_layer.weight)

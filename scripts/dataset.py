@@ -115,43 +115,38 @@ class FMA_Audio_Dataset(Dataset):
 
         if split == "training":
             self.files = self.files[:train_size]
-            self.len = 8 * 2480
         elif split == "test":
             self.files = self.files[train_size : (train_size + test_size)]
-            self.len = 2480
         elif split == "validation":
             self.files = self.files[(train_size + test_size) : (train_size + 2 * test_size)]
-            self.len = 2480
 
         self.current_batch = 0
-        self.data = []
+        self.data, self.labels = self.load_batches()
         self.total_length = 0
 
     def __getitem__(self, index):
-
-        print(index)
-        self.data, self.labels = self.load_batch(index)
-        self.current_batch += 1
-        self.total_length += len(self.data)
             
-        return self.data, self.labels
+        return self.data[index], self.labels[index]
     
-    def load_batch(self, index):
+    def load_batches(self):
         '''
         Load the next .npz file
         '''
 
-        loaded = np.load(self.files[index])
-        data = torch.tensor(loaded['x'][:2480, :])
-        labels = torch.tensor(loaded['y'][:2480])
+        data = torch.tensor([])
+        labels = torch.tensor([])
+
+        for file in self.files:
+            loaded = np.load(file)
+            data = torch.cat((data, torch.tensor(loaded['x'])), 0)
+            labels = torch.cat((labels, torch.tensor(loaded['y'])), 0)
 
         data = torch.reshape(data, (data.shape[0], 1, data.shape[1]))
 
-        return data, labels
+        return data, labels.type(torch.LongTensor)
     
     def __len__(self):
-        
-        return self.len
+        return len(self.data)
 
 
 def create_dataset(batch_size = 500):
@@ -170,10 +165,15 @@ def create_dataset(batch_size = 500):
         track_id = int(os.path.basename(file)[:-4])
 
         try:
-            x, sr = librosa.load(file, sr = 10000)
-            # trial and error min length of a decoded file such that our tensor is homogeneous
-            if x.shape[0] > 10000:
+            x, sr = librosa.load(file, sr = 10100 / 30)
+            if x.shape[0] != 10000:
                 x = x[:10000]
+                if x.shape[0] != 10000:
+                    raise UserWarning
+                
+            stft = np.abs(librosa.stft(x, n_fft=2048, hop_length=512))
+            mel = librosa.feature.melspectrogram(sr=sr, S=stft**2)
+            x = librosa.feature.mfcc(S=librosa.power_to_db(mel), n_mfcc=20)
             audio.append(x)
             label = new_id(tracks.loc[track_id, ('track', 'genre_top')])
             labels.append(label)
